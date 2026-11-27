@@ -119,6 +119,22 @@ export class Game {
       (p) => !p.left && !(r.settings.hostViewOnly && p.id === r.hostId),
     );
   }
+  submitters(r) {
+    return this.active(r).filter(
+      (p) => r.roundPlayers?.includes(p.id) && p.id !== r.judgeId,
+    );
+  }
+  advanceIfSubmitted(r) {
+    if (
+      r.phase === "submit" &&
+      this.submitters(r).every((p) =>
+        r.submissions.some(
+          (s) => s.playerId === p.id && s.status !== "pending",
+        ),
+      )
+    )
+      this.watch(r);
+  }
   host(r, id) {
     if (r.hostId !== id) fail("hostOnly");
   }
@@ -131,9 +147,8 @@ export class Game {
     delete rest.roundPlayers;
     return {
       ...rest,
-      canSubmit: Boolean(
-        r.roundPlayers?.includes(id) && this.active(r).some((p) => p.id === id),
-      ),
+      canSubmit: this.submitters(r).some((p) => p.id === id),
+      submitterIds: this.submitters(r).map((p) => p.id),
       serverTime: this.clock(),
       me: id,
       players: players.filter((p) => !p.left).map(({ token, ...p }) => p),
@@ -221,6 +236,7 @@ export class Game {
   }
   async submit(r, id, url) {
     if (r.phase !== "submit") fail("wrongPhase");
+    if (id === r.judgeId) fail("judgeCannotSubmit");
     if (
       !r.roundPlayers.includes(id) ||
       !this.active(r).some((p) => p.id === id)
@@ -240,22 +256,14 @@ export class Game {
     }
     if (r.round !== round || r.phase !== "submit") return;
     this.emit(r);
-    if (
-      r.roundPlayers.every(
-        (id) =>
-          !this.active(r).some((p) => p.id === id) ||
-          r.submissions.some(
-            (s) => s.playerId === id && s.status !== "pending",
-          ),
-      )
-    )
-      this.watch(r);
+    this.advanceIfSubmitted(r);
   }
   watch(r) {
     r.queue = shuffled(
       r.submissions.filter(
         (s) =>
           s.status !== "pending" &&
+          s.playerId !== r.judgeId &&
           !r.players.find((p) => p.id === s.playerId)?.left,
       ),
     );
@@ -384,6 +392,8 @@ export class Game {
     if (r.judgeId === id) {
       const replacement = this.active(r).find((p) => p.connected);
       r.judgeId = replacement?.id;
+      if (r.phase === "submit")
+        r.submissions = r.submissions.filter((s) => s.playerId !== r.judgeId);
       r.previousJudgeId = replacement?.id;
       if (!replacement) {
         r.phase = "lobby";
@@ -398,6 +408,7 @@ export class Game {
         );
       }
     this.emit(r);
+    this.advanceIfSubmitted(r);
   }
   tick() {
     for (const r of this.rooms.values()) {

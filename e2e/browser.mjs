@@ -65,8 +65,10 @@ try {
       locale: "de-DE",
     });
   const host = await hostContext.newPage(),
-    phone = await phoneContext.newPage();
-  for (const p of [host, phone])
+    phone = await phoneContext.newPage(),
+    guestContext = await browser.newContext({ locale: "en-GB" }),
+    guest = await guestContext.newPage();
+  for (const p of [host, phone, guest])
     p.on("pageerror", (e) => errors.push(e.message));
   const url = `http://127.0.0.1:${app.port}`;
   await host.goto(url);
@@ -82,6 +84,10 @@ try {
   await phone.locator("#name").fill("Player Zwei");
   await phone.locator("#join").click();
   await phone.locator("#leave").waitFor();
+  await guest.goto(`${url}/?room=${room.code}`);
+  await guest.locator("#name").fill("Third Player");
+  await guest.locator("#join").click();
+  await guest.locator("#leave").waitFor();
   await host.locator("summary").click();
   await host.locator("[name=judgeMode]").selectOption("host");
   await host.locator("[name=promptCount]").fill("10");
@@ -111,14 +117,31 @@ try {
   await names.first().selectOption("Player Zwei");
   const visitor2 = app.game.join(room.code, "Visitor two").player;
   app.game.emit(room);
-  await host.locator(".sidebar").getByText("Visitor two", { exact: true }).waitFor();
+  await host
+    .locator(".sidebar")
+    .getByText("Visitor two", { exact: true })
+    .waitFor();
   assert.equal(await names.first().inputValue(), "Player Zwei");
   app.game.leave(room, visitor2.id);
   await promptForm.locator("button").click();
   await phone.locator("#meme-url").fill("https://youtu.be/abcdefghijk");
   await phone.locator("#meme-url").focus();
-  await host.locator("#meme-url").fill("https://youtu.be/abcdefghijk");
-  await host.locator("#submit-form button").click();
+  assert.equal(await host.locator("#submit-form").count(), 0);
+  await host
+    .getByText(
+      "You’re the Memeinator: you choose the winner and cannot submit a meme. Waiting for the players’ memes.",
+      { exact: true },
+    )
+    .waitFor();
+  const forged = await host.evaluate(() =>
+    socket.emitWithAck("command", {
+      type: "submit",
+      data: { url: "https://youtu.be/abcdefghijk" },
+    }),
+  );
+  assert.equal(forged.error, "judgeCannotSubmit");
+  await guest.locator("#meme-url").fill("https://youtu.be/abcdefghijk");
+  await guest.locator("#submit-form button").click();
   await phone.waitForFunction(() =>
     document.querySelector(".progress-list")?.textContent.includes("Abgegeben"),
   );
@@ -152,7 +175,7 @@ try {
   });
   await phone.reload();
   await phone.locator("#play-here").waitFor();
-  assert.equal(room.players.filter((p) => !p.left).length, 2);
+  assert.equal(room.players.filter((p) => !p.left).length, 3);
   assert.equal(room.players.find((p) => p.id === id).connected, true);
   assert.equal(
     await host.evaluate(

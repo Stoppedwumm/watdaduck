@@ -17,6 +17,10 @@ function fixture(input = {}) {
   const { player: p } = game.join(r.code, "Player");
   return { game, r, host, p, advance: (ms) => (now += ms) };
 }
+async function submitPlayers(game, r) {
+  for (const player of game.submitters(r))
+    await game.submit(r, player.id, "https://youtu.be/abcdefghijk");
+}
 test("validates settings and protects host controls", () => {
   assert.equal(defaults.promptSeconds, 30);
   assert.equal(defaults.maxPlaySeconds, 90);
@@ -38,8 +42,7 @@ test("complete round, private choices and anonymous submissions, fixed 15 second
   const prompt = r.choices[0];
   game.choose(r, judge, prompt.id, prompt.fills);
   assert(!r.prompt.includes("{player}"));
-  await game.submit(r, host.id, "https://youtu.be/abcdefghijk");
-  await game.submit(r, p.id, "https://youtu.be/abcdefghijk");
+  await submitPlayers(game, r);
   assert.equal(r.phase, "watch");
   assert.equal(r.deadline - r.startedAt, 15000);
   const s = game.state(r, p.id);
@@ -88,6 +91,7 @@ test("view-only host cannot be crowned or submit, and can choose the judge", () 
   const prompt = r.choices[0];
   game.choose(r, p.id, prompt.id, []);
   assert.equal(game.state(r, host.id).canSubmit, false);
+  assert.equal(game.state(r, p.id).canSubmit, false);
   assert.equal(game.state(r, q.id).canSubmit, true);
   return assert.rejects(
     game.submit(r, host.id, "https://example.com"),
@@ -111,7 +115,11 @@ test("timeouts progress even when judge disconnects and pending downloads never 
   assert.equal(r.phase, "submit");
   let finish;
   game.prepare = () => new Promise((resolve) => (finish = resolve));
-  const pending = game.submit(r, host.id, "https://youtu.be/abcdefghijk");
+  const pending = game.submit(
+    r,
+    game.submitters(r)[0].id,
+    "https://youtu.be/abcdefghijk",
+  );
   advance(90000);
   game.tick();
   assert.equal(r.phase, "result");
@@ -137,7 +145,10 @@ test("invalid submission can be retried and pending duplicate rejected", async (
   game.prepare = async () => {
     throw Error("bad");
   };
-  await assert.rejects(game.submit(r, host.id, "bad"), /invalidUrl/);
+  await assert.rejects(
+    game.submit(r, game.submitters(r)[0].id, "bad"),
+    /invalidUrl/,
+  );
   assert.equal(r.submissions.length, 0);
 });
 test("German prompts substitute the selected player names", () => {
@@ -156,8 +167,7 @@ test("vote timeout awards exactly one point and removes the crown", async () => 
   game.start(r, host.id);
   const prompt = r.choices[0];
   game.choose(r, r.judgeId, prompt.id, prompt.fills);
-  await game.submit(r, host.id, "one");
-  await game.submit(r, p.id, "two");
+  await submitPlayers(game, r);
   advance(15000);
   game.tick();
   advance(15000);
@@ -178,8 +188,7 @@ test("embedded metadata duration cannot exceed room maximum or lower the 15s min
   game.start(r, host.id);
   const prompt = r.choices[0];
   game.choose(r, r.judgeId, prompt.id, prompt.fills);
-  await game.submit(r, host.id, "one");
-  await game.submit(r, p.id, "two");
+  await submitPlayers(game, r);
   game.action(r, host.id, "duration", { id: r.queue[0].id, duration: 2 });
   assert.equal(r.deadline - r.startedAt, 15000);
   assert.equal(game.state(r, host.id).current.duration, 2);
@@ -208,3 +217,61 @@ for (const autoFill of [false, true])
     assert.equal(r.phase, "submit");
     assert(!r.prompt.includes(p.name));
   });
+
+for (const judgeMode of ["random", "host"])
+  test(`Memeinator cannot submit, including after reconnect (${judgeMode})`, async () => {
+    const { game, r, host, p } = fixture({ judgeMode });
+    game.start(r, host.id, judgeMode === "host" ? p.id : undefined);
+    const judge = r.players.find((p) => p.id === r.judgeId),
+      prompt = r.choices[0];
+    game.choose(r, judge.id, prompt.id, prompt.fills);
+    let downloads = 0;
+    game.prepare = async (url) => {
+      downloads++;
+      return { url, status: "embed" };
+    };
+    assert.equal(game.state(r, judge.id).canSubmit, false);
+    assert(!game.state(r, judge.id).submitterIds.includes(judge.id));
+    await assert.rejects(
+      game.action(r, judge.id, "submit", {
+        url: "https://youtu.be/abcdefghijk",
+      }),
+      /judgeCannotSubmit/,
+    );
+    assert.equal(downloads, 0);
+    assert.equal(r.submissions.length, 0);
+    judge.connected = false;
+    game.join(r.code, "ignored", judge.token);
+    assert.equal(game.state(r, judge.id).canSubmit, false);
+    await assert.rejects(
+      game.submit(r, judge.id, "https://youtu.be/abcdefghijk"),
+      /judgeCannotSubmit/,
+    );
+    await submitPlayers(game, r);
+    assert.equal(r.phase, "watch");
+    assert.equal(r.queue.length, 1);
+    assert.notEqual(r.queue[0].playerId, judge.id);
+  });
+
+test("departing Memeinator promotes a judge without waiting for their submission", async () => {
+  const { game, r, host, p } = fixture({ judgeMode: "host" });
+  const q = game.join(r.code, "Other").player;
+  game.start(r, host.id, host.id);
+  const prompt = r.choices[0];
+  game.choose(r, host.id, prompt.id, prompt.fills);
+  await game.submit(r, p.id, "https://youtu.be/abcdefghijk");
+  assert.equal(r.phase, "submit");
+  game.leave(r, host.id);
+  assert.equal(r.judgeId, p.id);
+  assert.equal(game.state(r, p.id).canSubmit, false);
+  await assert.rejects(
+    game.submit(r, p.id, "https://youtu.be/abcdefghijk"),
+    /judgeCannotSubmit/,
+  );
+  await game.submit(r, q.id, "https://youtu.be/abcdefghijk");
+  assert.equal(r.phase, "watch");
+  assert.deepEqual(
+    r.queue.map((s) => s.playerId),
+    [q.id],
+  );
+});
