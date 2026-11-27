@@ -52,6 +52,11 @@ const copy = {
     prompt: "A royal decision",
     submit: "Feed the meme machine",
     watch: "Roll the memes",
+    cutscene: "Random Bullshit Go!",
+    specialCard: "Special card",
+    cutsceneNext: "Get ready. Submissions open after the cutscene.",
+    cutsceneError:
+      "The cutscene could not be loaded. Submissions will open automatically.",
     vote: "Judgment time",
     result: "The verdict",
     waitingTitle: "The flock is assembling.",
@@ -190,6 +195,12 @@ const copy = {
     prompt: "Königliche Entscheidung",
     submit: "Füttert die Meme-Maschine",
     watch: "Film ab",
+    cutscene: "Random Bullshit Go!",
+    specialCard: "Spezialkarte",
+    cutsceneNext:
+      "Macht euch bereit. Nach der Zwischensequenz startet die Abgabe.",
+    cutsceneError:
+      "Die Zwischensequenz konnte nicht geladen werden. Die Abgabe startet automatisch.",
     vote: "Zeit für das Urteil",
     result: "Das Ergebnis",
     waitingTitle: "Die Entenschar versammelt sich.",
@@ -454,6 +465,8 @@ function phaseContent() {
         )
         .join("")}</div>`;
     }
+    case "cutscene":
+      return `<div class="special-card"><span class="eyebrow">${t("specialCard")}</span><h2>${esc(state.current.title)}</h2><p class="cutscene-prompt">${esc(state.prompt)}</p><div id="media-slot"></div><div class="playback-actions"><button class="small" id="unlock">${t("unlock")}</button></div><p class="note">${t("cutsceneNext")}</p></div>`;
     case "watch":
       return `<span class="eyebrow">${t("meme")} ${state.current.number} ${t("of")} ${state.current.total}</span><h2>${esc(state.prompt)}</h2><div id="media-slot"></div><div class="playback-actions"><button class="small" id="unlock">${t("unlock")}</button>${isHost() ? `<button class="small ghost" id="skip">${t("nextMeme")}</button>` : ""}</div><p class="note">${t("fallback")}</p>`;
     case "vote":
@@ -530,7 +543,7 @@ function render() {
   updateLanguage();
   // Presence and timer snapshots must not detach an active iframe/video.
   if (
-    state?.phase === "watch" &&
+    ["watch", "cutscene"].includes(state?.phase) &&
     mediaKey === playbackKey() &&
     $("#media-slot")?.firstChild === mediaNode
   ) {
@@ -618,7 +631,7 @@ function render() {
       (b) => (b.onclick = () => perform("vote", { id: b.dataset.vote })),
     );
   $("#skip")?.addEventListener("click", () => perform("skip"));
-  if (state.phase === "watch") {
+  if (["watch", "cutscene"].includes(state.phase)) {
     const key = playbackKey();
     if (key !== mediaKey) {
       mediaKey = key;
@@ -677,7 +690,7 @@ function buildMedia() {
     v.controls = true;
     v.playsInline = true;
     v.autoplay = true;
-    v.loop = Boolean(c.duration < 15);
+    v.loop = state.phase === "watch" && Boolean(c.duration < 15);
     v.addEventListener("loadedmetadata", () => {
       const elapsed = Math.max(
         0,
@@ -687,10 +700,21 @@ function buildMedia() {
         v.currentTime = v.loop
           ? elapsed % v.duration
           : Math.min(elapsed, v.duration - 0.1);
-      v.play().catch(() => toast(t("unlock")));
+      v.play().catch(() => {
+        if (c.id.startsWith("cutscene:")) {
+          v.muted = true;
+          v.play().catch(() => {});
+        }
+        toast(t("unlock"));
+      });
     });
     v.addEventListener("error", () => {
-      node.replaceChildren(embed(c));
+      if (c.id.startsWith("cutscene:")) {
+        const message = document.createElement("p");
+        message.className = "cutscene-error";
+        message.textContent = t("cutsceneError");
+        node.replaceChildren(message);
+      } else node.replaceChildren(embed(c));
     });
     node.append(v);
   } else node.append(embed(c));

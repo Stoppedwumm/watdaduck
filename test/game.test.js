@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Game, defaults, settings } from "../src/game.js";
+import cutscene from "../data/cutscene.json" with { type: "json" };
+const clocks = new WeakMap();
 function fixture(input = {}) {
   let now = 1000;
   const game = new Game({
@@ -15,7 +17,14 @@ function fixture(input = {}) {
   });
   const { room: r, player: host } = game.create("Host", input);
   const { player: p } = game.join(r.code, "Player");
-  return { game, r, host, p, advance: (ms) => (now += ms) };
+  const advance = (ms) => (now += ms);
+  clocks.set(game, advance);
+  return { game, r, host, p, advance };
+}
+function chooseAndFinish(game, r, id, promptId, fills) {
+  game.choose(r, id, promptId, fills);
+  clocks.get(game)(Math.ceil(cutscene.durationSeconds * 1000));
+  game.tick();
 }
 async function submitPlayers(game, r) {
   for (const player of game.submitters(r))
@@ -40,7 +49,7 @@ test("complete round, private choices and anonymous submissions, fixed 15 second
     0,
   );
   const prompt = r.choices[0];
-  game.choose(r, judge, prompt.id, prompt.fills);
+  chooseAndFinish(game, r, judge, prompt.id, prompt.fills);
   assert(!r.prompt.includes("{player}"));
   await submitPlayers(game, r);
   assert.equal(r.phase, "watch");
@@ -89,7 +98,7 @@ test("view-only host cannot be crowned or submit, and can choose the judge", () 
   game.start(r, host.id, p.id);
   assert.equal(r.judgeId, p.id);
   const prompt = r.choices[0];
-  game.choose(r, p.id, prompt.id, []);
+  chooseAndFinish(game, r, p.id, prompt.id, []);
   assert.equal(game.state(r, host.id).canSubmit, false);
   assert.equal(game.state(r, p.id).canSubmit, false);
   assert.equal(game.state(r, q.id).canSubmit, true);
@@ -111,6 +120,9 @@ test("timeouts progress even when judge disconnects and pending downloads never 
   const { game, r, host, advance } = fixture();
   game.start(r, host.id);
   advance(30000);
+  game.tick();
+  assert.equal(r.phase, "cutscene");
+  advance(Math.ceil(cutscene.durationSeconds * 1000));
   game.tick();
   assert.equal(r.phase, "submit");
   let finish;
@@ -141,7 +153,7 @@ test("invalid submission can be retried and pending duplicate rejected", async (
   const { game, r, host } = fixture();
   game.start(r, host.id);
   const prompt = r.choices[0];
-  game.choose(r, r.judgeId, prompt.id, prompt.fills);
+  chooseAndFinish(game, r, r.judgeId, prompt.id, prompt.fills);
   game.prepare = async () => {
     throw Error("bad");
   };
@@ -157,7 +169,7 @@ test("German prompts substitute the selected player names", () => {
   const prompt = r.choices.find((p) => p.de.includes("{player}"));
   assert(prompt);
   const fills = prompt.fills.map((_, i) => (i % 2 ? p.name : host.name));
-  game.choose(r, r.judgeId, prompt.id, fills);
+  chooseAndFinish(game, r, r.judgeId, prompt.id, fills);
   assert(!r.prompt.includes("{player}"));
   assert(r.prompt.includes("Host"));
   assert.equal(r.phase, "submit");
@@ -166,7 +178,7 @@ test("vote timeout awards exactly one point and removes the crown", async () => 
   const { game, r, host, p, advance } = fixture();
   game.start(r, host.id);
   const prompt = r.choices[0];
-  game.choose(r, r.judgeId, prompt.id, prompt.fills);
+  chooseAndFinish(game, r, r.judgeId, prompt.id, prompt.fills);
   await submitPlayers(game, r);
   advance(15000);
   game.tick();
@@ -187,7 +199,7 @@ test("embedded metadata duration cannot exceed room maximum or lower the 15s min
   game.prepare = async (url) => ({ url, status: "embed" });
   game.start(r, host.id);
   const prompt = r.choices[0];
-  game.choose(r, r.judgeId, prompt.id, prompt.fills);
+  chooseAndFinish(game, r, r.judgeId, prompt.id, prompt.fills);
   await submitPlayers(game, r);
   game.action(r, host.id, "duration", { id: r.queue[0].id, duration: 2 });
   assert.equal(r.deadline - r.startedAt, 15000);
@@ -214,6 +226,9 @@ for (const autoFill of [false, true])
     game.leave(r, p.id);
     advance(30000);
     assert.doesNotThrow(() => game.tick());
+    assert.equal(r.phase, "cutscene");
+    advance(Math.ceil(cutscene.durationSeconds * 1000));
+    game.tick();
     assert.equal(r.phase, "submit");
     assert(!r.prompt.includes(p.name));
   });
@@ -224,7 +239,7 @@ for (const judgeMode of ["random", "host"])
     game.start(r, host.id, judgeMode === "host" ? p.id : undefined);
     const judge = r.players.find((p) => p.id === r.judgeId),
       prompt = r.choices[0];
-    game.choose(r, judge.id, prompt.id, prompt.fills);
+    chooseAndFinish(game, r, judge.id, prompt.id, prompt.fills);
     let downloads = 0;
     game.prepare = async (url) => {
       downloads++;
@@ -258,7 +273,7 @@ test("departing Memeinator promotes a judge without waiting for their submission
   const q = game.join(r.code, "Other").player;
   game.start(r, host.id, host.id);
   const prompt = r.choices[0];
-  game.choose(r, host.id, prompt.id, prompt.fills);
+  chooseAndFinish(game, r, host.id, prompt.id, prompt.fills);
   await game.submit(r, p.id, "https://youtu.be/abcdefghijk");
   assert.equal(r.phase, "submit");
   game.leave(r, host.id);
@@ -274,4 +289,50 @@ test("departing Memeinator promotes a judge without waiting for their submission
     r.queue.map((s) => s.playerId),
     [q.id],
   );
+});
+
+test("special card blocks submissions, survives reconnects and starts a fresh submission timer", async () => {
+  const { game, r, host, p, advance } = fixture({
+    judgeMode: "host",
+    submissionSeconds: 45,
+  });
+  game.start(r, host.id, host.id);
+  const prompt = r.choices[0];
+  game.choose(r, host.id, prompt.id, prompt.fills);
+  assert.equal(r.phase, "cutscene");
+  const deadline = r.deadline;
+  assert.equal(deadline - r.cutsceneStartedAt, 11680);
+  assert.equal(game.state(r, p.id).canSubmit, false);
+  await assert.rejects(
+    game.action(r, p.id, "submit", { url: "https://youtu.be/abcdefghijk" }),
+    /wrongPhase/,
+  );
+  assert.throws(() => game.action(r, host.id, "skip"), /wrongPhase/);
+  advance(4000);
+  p.connected = false;
+  game.join(r.code, "ignored", p.token);
+  const state = game.state(r, p.id);
+  assert.equal(state.phase, "cutscene");
+  assert.equal(state.deadline, deadline);
+  assert.equal(state.current.title, "Random Bullshit Go!");
+  assert.equal(state.current.media, cutscene.media);
+  assert.equal(state.serverTime - state.current.startedAt, 4000);
+  advance(7679);
+  game.tick();
+  assert.equal(r.phase, "cutscene");
+  advance(1);
+  game.tick();
+  assert.equal(r.phase, "submit");
+  assert.equal(r.deadline - game.clock(), 45000);
+  assert.equal(game.state(r, p.id).canSubmit, true);
+  assert.equal(game.state(r, host.id).canSubmit, false);
+  await submitPlayers(game, r);
+  advance(15000);
+  game.tick();
+  game.vote(r, host.id, r.queue[0].id);
+  game.start(r, host.id, p.id);
+  const next = r.choices[0];
+  game.choose(r, p.id, next.id, next.fills);
+  assert.equal(r.phase, "cutscene");
+  assert.equal(game.state(r, p.id).current.id, "cutscene:2");
 });

@@ -665,3 +665,32 @@ a {
 .player-screen button {
   color: var(--ink);
 }
+
+.special-card {
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  padding: 22px;
+  background: var(--yellow);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.special-card h2 {
+  font-size: clamp(28px, 4vw, 52px);
+  margin-top: 8px;
+}
+.special-card .eyebrow,
+.special-card .note {
+  color: var(--ink);
+}
+.cutscene-prompt {
+  margin: 0 0 18px;
+  font-weight: 600;
+}
+.cutscene-error {
+  padding: 24px;
+  text-align: center;
+}
+@media (max-width: 620px) {
+  .special-card {
+    padding: 14px;
+  }
+}

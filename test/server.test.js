@@ -92,3 +92,24 @@ test("configured public origin supports proxy Host rewriting and rejects foreign
     await app.close();
   }
 });
+
+test("bundled cutscene is served as MP4 with byte-range playback support", async () => {
+  const app = await createApp({
+    port: 0,
+    host: "127.0.0.1",
+    prepare: async (url) => ({ url, status: "embed" }),
+  });
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${app.port}/assets/random-bullshit-go.mp4`,
+      { headers: { Range: "bytes=0-31" } },
+    );
+    assert.equal(response.status, 206);
+    assert.match(response.headers.get("content-type"), /video\/mp4/);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.equal(bytes.length, 32);
+    assert.equal(bytes.subarray(4, 8).toString(), "ftyp");
+  } finally {
+    await app.close();
+  }
+});
