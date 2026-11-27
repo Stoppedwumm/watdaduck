@@ -1,0 +1,25 @@
+{
+  "name": "whatdaduck",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "check": "node --check src/server.js && node --check src/game.js && node --check src/media.js && node --check public/app.js",
+    "test:browser": "node e2e/browser.mjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "ipaddr.js": "^2.5.0",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.1",
+    "socket.io-client": "^4.8.1"
+  }
+}
