@@ -124,6 +124,71 @@ try {
   assert.equal(await names.first().inputValue(), "Player Zwei");
   app.game.leave(room, visitor2.id);
   await promptForm.locator("button").click();
+  await host.locator(".special-card video").waitFor();
+  assert.equal(room.phase, "cutscene");
+  assert.equal(
+    await host.locator(".special-card h2").textContent(),
+    "Random Bullshit Go!",
+  );
+  assert.equal(await host.locator("#submit-form").count(), 0);
+  assert.equal(await phone.locator("video").count(), 0);
+  await phone.locator(".special-card #play-here").waitFor();
+  await host.waitForFunction(
+    () => document.querySelector(".special-card video")?.readyState >= 2,
+  );
+  assert.equal(
+    await host.locator(".special-card video").evaluate((v) => v.loop),
+    false,
+  );
+  assert.equal(
+    await host
+      .locator(".special-card video")
+      .evaluate((v) => v.currentSrc.endsWith("/assets/random-bullshit-go.mp4")),
+    true,
+  );
+  const blocked = await phone.evaluate(() =>
+    socket.emitWithAck("command", {
+      type: "submit",
+      data: { url: "https://youtu.be/abcdefghijk" },
+    }),
+  );
+  assert.equal(blocked.error, "wrongPhase");
+  await host.screenshot({
+    path: "artifacts/whatdaduck-cutscene.png",
+    fullPage: true,
+  });
+  // Rejoin must seek into this same cutscene, without restarting its shared deadline.
+  const cutsceneDeadline = room.deadline;
+  room.cutsceneStartedAt = Date.now() - 4000;
+  room.deadline = room.cutsceneStartedAt + 11680;
+  app.game.emit(room);
+  const resumeDeadline = room.deadline;
+  await host.reload();
+  await host.waitForFunction(
+    () => document.querySelector(".special-card video")?.currentTime >= 3.5,
+  );
+  assert.equal(room.deadline, resumeDeadline);
+  assert(room.deadline <= cutsceneDeadline);
+  await host.evaluate(
+    () => (window.originalCutscene = document.querySelector("video")),
+  );
+  const cutsceneVisitor = app.game.join(room.code, "Cutscene Visitor").player;
+  app.game.emit(room);
+  await host
+    .locator(".sidebar")
+    .getByText("Cutscene Visitor", { exact: true })
+    .waitFor();
+  assert.equal(
+    await host.evaluate(
+      () => window.originalCutscene === document.querySelector("video"),
+    ),
+    true,
+  );
+  app.game.leave(room, cutsceneVisitor.id);
+  room.deadline = Date.now() - 1;
+  app.game.tick();
+  assert.equal(room.phase, "submit");
+  assert(room.deadline - Date.now() > 89000);
   await phone.locator("#meme-url").fill("https://youtu.be/abcdefghijk");
   await phone.locator("#meme-url").focus();
   assert.equal(await host.locator("#submit-form").count(), 0);

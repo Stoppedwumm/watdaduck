@@ -10,6 +10,8 @@ Play at **[whatdaduck.stoppedwumm.net](https://whatdaduck.stoppedwumm.net)**. Th
 2. Configure the room. The host can play or be a view-only TV operator.
 3. A randomly crowned **Memeinator** chooses one of three JSON-defined prompts in 30 seconds. Alternatively, the host chooses the Memeinator. The previous ruler cannot be chosen for the next round.
 4. Prompts with `{player}` blanks let the Memeinator select player names, or the room can fill them automatically.
+**Special card:** After the prompt is chosen, **Random Bullshit Go!** plays the bundled 11.68-second cutscene once. The submission timer starts only afterward. TV mode and reconnect position apply to the cutscene; it does not use the 15-second meme loop rule.
+
 5. All playing participants except the Memeinator submit one YouTube, TikTok, X/Twitter, or Reddit post link. The Memeinator only chooses the prompt and judges the memes; they cannot submit. The other players submit within 90 seconds by default. Players joining mid-round start playing next round.
 6. The server attempts a bounded yt-dlp download for each submission and serves a local MP4. If extraction, conversion, capacity or downloading fails, the game uses a platform embed with an original-link fallback.
 7. Watch the memes in shuffled, anonymous order. TV mode defaults to **on**: only the host device starts playback automatically. Other devices can explicitly opt into local playback.

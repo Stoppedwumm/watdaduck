@@ -1,6 +1,8 @@
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import prompts from "../data/prompts.json" with { type: "json" };
 
+import cutscene from "../data/cutscene.json" with { type: "json" };
+
 export const defaults = {
   language: "en",
   hostViewOnly: false,
@@ -147,7 +149,8 @@ export class Game {
     delete rest.roundPlayers;
     return {
       ...rest,
-      canSubmit: this.submitters(r).some((p) => p.id === id),
+      canSubmit:
+        r.phase === "submit" && this.submitters(r).some((p) => p.id === id),
       submitterIds: this.submitters(r).map((p) => p.id),
       serverTime: this.clock(),
       me: id,
@@ -157,7 +160,20 @@ export class Game {
         .filter((s) => s.status !== "pending")
         .map((s) => s.playerId),
       mySubmission: submissions.find((s) => s.playerId === id)?.status || null,
-      current: r.phase === "watch" ? this.current(r) : null,
+      current:
+        r.phase === "watch"
+          ? this.current(r)
+          : r.phase === "cutscene"
+            ? {
+                id: `cutscene:${r.round}`,
+                title: cutscene.title,
+                media: cutscene.media,
+                duration: cutscene.durationSeconds,
+                status: "ready",
+                startedAt: r.cutsceneStartedAt,
+                endsAt: r.deadline,
+              }
+            : null,
       candidates: ["vote", "result"].includes(r.phase)
         ? r.queue.map((s) => ({ id: s.id, playerId: s.playerId, url: s.url }))
         : [],
@@ -230,9 +246,17 @@ export class Game {
       fail("invalidNames");
     let i = 0;
     r.prompt = p[r.settings.language].replace(/\{player\}/g, () => names[i++]);
+    r.phase = "cutscene";
+    r.cutsceneStartedAt = this.clock();
+    r.deadline =
+      r.cutsceneStartedAt + Math.ceil(cutscene.durationSeconds * 1000);
+    this.emit(r);
+  }
+  beginSubmissions(r) {
     r.phase = "submit";
     r.deadline = this.clock() + r.settings.submissionSeconds * 1000;
     this.emit(r);
+    this.advanceIfSubmitted(r);
   }
   async submit(r, id, url) {
     if (r.phase !== "submit") fail("wrongPhase");
@@ -428,7 +452,8 @@ export class Game {
           (p[r.settings.language].match(/\{player\}/g) || []).length,
         );
         this.choose(r, r.judgeId, p.id, fills);
-      } else if (r.phase === "submit") this.watch(r);
+      } else if (r.phase === "cutscene") this.beginSubmissions(r);
+      else if (r.phase === "submit") this.watch(r);
       else if (r.phase === "watch") this.next(r);
       else if (r.phase === "vote")
         this.vote(r, r.judgeId, r.queue[randomInt(r.queue.length)].id);
