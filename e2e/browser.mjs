@@ -84,7 +84,17 @@ try {
   await phone.locator("#leave").waitFor();
   await host.locator("summary").click();
   await host.locator("[name=judgeMode]").selectOption("host");
-  await host.locator("[name=autoFill]").check();
+  await host.locator("[name=promptCount]").fill("10");
+  const visitor = app.game.join(room.code, "Visitor").player;
+  app.game.emit(room);
+  await host.getByText("Visitor", { exact: true }).waitFor();
+  assert.equal(await host.locator("[name=judgeMode]").inputValue(), "host");
+  assert.equal(await host.locator("[name=promptCount]").inputValue(), "10");
+  assert.equal(
+    await host.locator("details.settings").evaluate((el) => el.open),
+    true,
+  );
+  app.game.leave(room, visitor.id);
   await host.locator("#settings-form button").click();
   await host.locator("#judge-choice").selectOption(room.hostId);
   await host.locator("#start").click();
@@ -93,10 +103,35 @@ try {
     path: "artifacts/whatdaduck-prompts.png",
     fullPage: true,
   });
-  await host.locator("[data-prompt] button").first().click();
+  const promptForm = host
+    .locator("[data-prompt]")
+    .filter({ has: host.locator("select") })
+    .first();
+  const names = promptForm.locator("select");
+  await names.first().selectOption("Player Zwei");
+  const visitor2 = app.game.join(room.code, "Visitor two").player;
+  app.game.emit(room);
+  await host.locator(".sidebar").getByText("Visitor two", { exact: true }).waitFor();
+  assert.equal(await names.first().inputValue(), "Player Zwei");
+  app.game.leave(room, visitor2.id);
+  await promptForm.locator("button").click();
+  await phone.locator("#meme-url").fill("https://youtu.be/abcdefghijk");
+  await phone.locator("#meme-url").focus();
   await host.locator("#meme-url").fill("https://youtu.be/abcdefghijk");
   await host.locator("#submit-form button").click();
-  await phone.locator("#meme-url").fill("https://youtu.be/abcdefghijk");
+  await phone.waitForFunction(() =>
+    document.querySelector(".progress-list")?.textContent.includes("Abgegeben"),
+  );
+  assert.equal(
+    await phone.locator("#meme-url").inputValue(),
+    "https://youtu.be/abcdefghijk",
+  );
+  assert.equal(
+    await phone
+      .locator("#meme-url")
+      .evaluate((el) => el === document.activeElement),
+    true,
+  );
   await phone.locator("#submit-form button").click();
   await host.locator("video").waitFor();
   await phone.locator("#play-here").waitFor();
@@ -125,12 +160,10 @@ try {
     ),
     true,
   );
-  const colors = await phone
-    .locator("#play-here")
-    .evaluate((el) => ({
-      text: getComputedStyle(el).color,
-      background: getComputedStyle(el).backgroundColor,
-    }));
+  const colors = await phone.locator("#play-here").evaluate((el) => ({
+    text: getComputedStyle(el).color,
+    background: getComputedStyle(el).backgroundColor,
+  }));
   assert.notEqual(colors.text, colors.background);
   await phone.locator("#play-here").click();
   await phone.locator("video").waitFor();

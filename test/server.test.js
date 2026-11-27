@@ -61,3 +61,34 @@ test("real sockets create, join, restore state, transfer host, and leave", async
     await app.close();
   }
 });
+
+test("configured public origin supports proxy Host rewriting and rejects foreign origins", async () => {
+  const app = await createApp({
+    port: 0,
+    host: "127.0.0.1",
+    publicOrigin: "https://whatdaduck.stoppedwumm.net",
+    prepare: async (url) => ({ url, status: "embed" }),
+  });
+  const clients = [];
+  const dial = (origin) =>
+    new Promise((resolve) => {
+      const s = io(`http://127.0.0.1:${app.port}`, {
+        transports: ["websocket"],
+        forceNew: true,
+        reconnection: false,
+        timeout: 2000,
+        extraHeaders: { Origin: origin },
+      });
+      clients.push(s);
+      s.once("connect", () => resolve(true));
+      s.once("connect_error", () => resolve(false));
+    });
+  try {
+    assert.equal(await dial("https://whatdaduck.stoppedwumm.net"), true);
+    assert.equal(await dial("https://unrelated.example"), false);
+    assert.equal(await dial(`http://127.0.0.1:${app.port}`), true);
+  } finally {
+    clients.forEach((s) => s.disconnect());
+    await app.close();
+  }
+});

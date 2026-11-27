@@ -205,8 +205,8 @@ export class Game {
     if (r.judgeId !== id) fail("judgeOnly");
     const p = r.choices.find((p) => p.id === promptId);
     if (!p) fail("invalidPrompt");
-    const names = r.settings.autoFill ? p.fills : fills;
     const count = (p[r.settings.language].match(/\{player\}/g) || []).length;
+    const names = r.settings.autoFill ? this.fillNames(r, count) : fills;
     if (
       !Array.isArray(names) ||
       names.length !== count ||
@@ -390,6 +390,13 @@ export class Game {
         r.deadline = null;
       }
     }
+    if (r.phase === "prompt")
+      for (const prompt of r.choices) {
+        prompt.fills = this.fillNames(
+          r,
+          (prompt[r.settings.language].match(/\{player\}/g) || []).length,
+        );
+      }
     this.emit(r);
   }
   tick() {
@@ -405,7 +412,11 @@ export class Game {
       if (!r.deadline || this.clock() < r.deadline) continue;
       if (r.phase === "prompt") {
         const p = r.choices[0];
-        this.choose(r, r.judgeId, p.id, p.fills);
+        const fills = this.fillNames(
+          r,
+          (p[r.settings.language].match(/\{player\}/g) || []).length,
+        );
+        this.choose(r, r.judgeId, p.id, fills);
       } else if (r.phase === "submit") this.watch(r);
       else if (r.phase === "watch") this.next(r);
       else if (r.phase === "vote")

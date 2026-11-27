@@ -10,7 +10,9 @@ export async function createApp({
   prepare,
   port = Number(process.env.PORT || 9090),
   host = process.env.HOST || "0.0.0.0",
+  publicOrigin = process.env.PUBLIC_ORIGIN,
 } = {}) {
+  const configuredOrigin = publicOrigin ? new URL(publicOrigin).origin : null;
   const proxy = prepare ? null : await createDownloadProxy();
   const media = prepare ? null : await createMedia({ proxy: proxy.url });
   const app = express(),
@@ -20,7 +22,12 @@ export async function createApp({
       allowRequest: (req, done) => {
         const origin = req.headers.origin;
         try {
-          done(null, !origin || new URL(origin).host === req.headers.host);
+          done(
+            null,
+            !origin ||
+              new URL(origin).host === req.headers.host ||
+              new URL(origin).origin === configuredOrigin,
+          );
         } catch {
           done(null, false);
         }

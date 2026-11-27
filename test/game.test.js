@@ -190,3 +190,21 @@ test("embedded metadata duration cannot exceed room maximum or lower the 15s min
     /hostOnly/,
   );
 });
+
+for (const autoFill of [false, true])
+  test(`prompt timeout refreshes departed player names (autoFill=${autoFill})`, () => {
+    const { game, r, host, p, advance } = fixture({
+      autoFill,
+      promptCount: 10,
+    });
+    game.join(r.code, "Third");
+    game.start(r, host.id);
+    const prompt = r.choices.find((p) => p.en.includes("{player}"));
+    r.choices = [prompt];
+    prompt.fills = prompt.fills.map(() => p.name);
+    game.leave(r, p.id);
+    advance(30000);
+    assert.doesNotThrow(() => game.tick());
+    assert.equal(r.phase, "submit");
+    assert(!r.prompt.includes(p.name));
+  });

@@ -2,6 +2,8 @@
 
 An online meme party game for 2–20 players. One Node.js server, phones for players, an optional shared TV, and absolutely questionable taste. Runs on **port 9090**, without Docker.
 
+Play at **[whatdaduck.stoppedwumm.net](https://whatdaduck.stoppedwumm.net)**. The Node.js service still listens on port 9090 behind your HTTPS reverse proxy.
+
 ## Play
 
 1. Host a party and share its six-character room code or invitation link.
@@ -37,6 +39,7 @@ Environment variables:
 | --- | --- | --- |
 | `PORT` | `9090` | HTTP and Socket.IO port |
 | `HOST` | `0.0.0.0` | Listen address |
+| `PUBLIC_ORIGIN` | unset (installer sets `https://whatdaduck.stoppedwumm.net`) | Explicit public origin allowed for proxied Socket.IO connections |
 | `YTDLP_PATH` | `yt-dlp` | Downloader executable |
 | `DISABLE_DOWNLOADS` | unset | Set `1` for embed-only mode |
 
@@ -70,7 +73,11 @@ sudo journalctl -u whatdaduck -f
 sudo systemctl restart whatdaduck
 ```
 
-Expose TCP 9090 in your firewall, or put the service behind an HTTPS reverse proxy forwarding both HTTP and WebSocket upgrades. A single process owns all rooms; multiple workers need a shared state implementation and are not supported.
+For `https://whatdaduck.stoppedwumm.net`, point DNS to your server and forward HTTPS requests to `127.0.0.1:9090`, including WebSocket upgrades. A Caddy configuration is included in `deploy/Caddyfile` (requires Caddy installed separately). Invitation links use the browser's current origin, so they automatically use the public domain when opened there.
+
+The installer sets `PUBLIC_ORIGIN=https://whatdaduck.stoppedwumm.net` for new installations. For an existing installation, add that line to `/etc/whatdaduck.env` and restart the service. This lets Socket.IO accept the public domain even if a proxy rewrites the upstream Host header; arbitrary forwarded headers are not trusted.
+
+For LAN-only use, open TCP 9090 in your firewall. A single process owns all rooms; multiple workers need a shared state implementation and are not supported.
 
 ## Reconnect and room behavior
 

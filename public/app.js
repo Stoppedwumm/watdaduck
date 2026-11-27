@@ -464,6 +464,62 @@ function playerList() {
 function playbackKey() {
   return `${state.current.id}:${state.settings.tvMode}:${isHost()}:${localPlayback}:${lang}`;
 }
+let renderedScope = "",
+  renderedSettings = "";
+const formKey = (form) => form.id || form.dataset.prompt;
+const fields = (form) =>
+  [...form.elements].filter((el) => ["INPUT", "SELECT"].includes(el.tagName));
+function captureDrafts(keepSettings) {
+  return {
+    forms: [...document.querySelectorAll("#app form")]
+      .filter((form) => keepSettings || form.id !== "settings-form")
+      .map((form) => ({
+        key: formKey(form),
+        values: fields(form).map((el) => ({
+          value: el.value,
+          checked: el.checked,
+          focused: el === document.activeElement,
+          start: el.selectionStart,
+          end: el.selectionEnd,
+        })),
+      })),
+    settingsOpen: $("details.settings")?.open,
+    judge: keepSettings ? $("#judge-choice")?.value : undefined,
+  };
+}
+function restoreDrafts(drafts) {
+  if (!drafts) return;
+  for (const draft of drafts.forms) {
+    const form = [...document.querySelectorAll("#app form")].find(
+      (form) => formKey(form) === draft.key,
+    );
+    if (!form) continue;
+    fields(form).forEach((el, i) => {
+      const value = draft.values[i];
+      if (!value) return;
+      if (
+        el.tagName !== "SELECT" ||
+        [...el.options].some((option) => option.value === value.value)
+      )
+        el.value = value.value;
+      if (el.type === "checkbox") el.checked = value.checked;
+      if (value.focused) {
+        el.focus({ preventScroll: true });
+        try {
+          el.setSelectionRange(value.start, value.end);
+        } catch {}
+      }
+    });
+  }
+  const details = $("details.settings");
+  if (details) details.open = drafts.settingsOpen;
+  const judge = $("#judge-choice");
+  if (
+    judge &&
+    [...judge.options].some((option) => option.value === drafts.judge)
+  )
+    judge.value = drafts.judge;
+}
 function render() {
   updateLanguage();
   // Presence and timer snapshots must not detach an active iframe/video.
@@ -476,6 +532,14 @@ function render() {
     updateTimer();
     return;
   }
+  const scope = state ? `${state.code}:${state.round}:${state.phase}` : "";
+  const settingsVersion = state ? JSON.stringify(state.settings) : "";
+  const drafts =
+    scope && scope === renderedScope
+      ? captureDrafts(settingsVersion === renderedSettings)
+      : null;
+  renderedScope = scope;
+  renderedSettings = settingsVersion;
   const oldMedia = mediaNode;
   if (!state) {
     $("#app").innerHTML = landing();
@@ -492,6 +556,7 @@ function render() {
   }
   $("#app").innerHTML =
     `${!socket.connected ? `<div class="connection-banner">${t("lost")}</div>` : ""}<div class="room-top"><div><div class="eyebrow">${t("room")}</div><span class="room-code">${state.code}</span></div><div class="actions"><button class="small" id="invite">${t("invite")}</button><button class="small ghost" id="leave">${t("leave")}</button></div></div><div class="room-layout"><aside class="sidebar"><div class="card">${playerList()}</div><div class="card"><h3>${t("rules")}</h3><p class="note">${t("rulesText")}</p></div></aside><section class="card stage"><div class="stage-header"><div><span class="eyebrow">${t("round")} ${String(state.round).padStart(2, "0")}</span><span class="phase-label">${t(state.phase)}</span></div><span id="timer" class="timer" role="timer"></span></div>${phaseContent()}</section></div>`;
+  restoreDrafts(drafts);
   $("#invite").onclick = () => {
     const link = `${location.origin}/?room=${state.code}`;
     navigator.clipboard

@@ -41,6 +41,7 @@ if [[ ! -f /etc/whatdaduck.env ]]; then
   cat > /etc/whatdaduck.env <<ENV
 PORT=9090
 HOST=0.0.0.0
+PUBLIC_ORIGIN=https://whatdaduck.stoppedwumm.net
 YTDLP_PATH=/opt/whatdaduck-tools/bin/yt-dlp
 NODE_ENV=production
 ENV
