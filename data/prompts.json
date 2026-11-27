@@ -1,0 +1,82 @@
+[
+  {
+    "id": "weekend",
+    "en": "{player}'s and {player}'s favorite activity on the weekend",
+    "de": "Die Lieblingsbeschäftigung von {player} und {player} am Wochenende"
+  },
+  {
+    "id": "monday",
+    "en": "When Monday hits a little too hard",
+    "de": "Wenn der Montag ein bisschen zu hart zuschlägt"
+  },
+  {
+    "id": "wifi",
+    "en": "{player} when the Wi-Fi stops working",
+    "de": "{player}, wenn das WLAN ausfällt"
+  },
+  {
+    "id": "group",
+    "en": "The group chat at 3 AM",
+    "de": "Der Gruppenchat um 3 Uhr nachts"
+  },
+  {
+    "id": "teacher",
+    "en": "When the teacher says: this will be on the test",
+    "de": "Wenn die Lehrkraft sagt: Das kommt in der Klausur dran"
+  },
+  {
+    "id": "cooking",
+    "en": "{player} trying to cook for {player}",
+    "de": "{player} versucht, für {player} zu kochen"
+  },
+  {
+    "id": "rich",
+    "en": "{player} five minutes after getting paid",
+    "de": "{player} fünf Minuten nach dem Gehaltseingang"
+  },
+  {
+    "id": "boss",
+    "en": "The final boss of awkward conversations",
+    "de": "Der Endgegner unangenehmer Gespräche"
+  },
+  {
+    "id": "plan",
+    "en": "We had a plan. Then {player} arrived.",
+    "de": "Wir hatten einen Plan. Dann kam {player}."
+  },
+  {
+    "id": "battery",
+    "en": "Me running on 2% battery",
+    "de": "Ich mit 2 % Restakku"
+  },
+  {
+    "id": "duo",
+    "en": "{player} and {player} left unsupervised",
+    "de": "{player} und {player} ohne Aufsicht"
+  },
+  {
+    "id": "explain",
+    "en": "{player} explaining why this was actually a good idea",
+    "de": "{player} erklärt, warum das eigentlich eine gute Idee war"
+  },
+  {
+    "id": "win",
+    "en": "When you win by doing absolutely nothing",
+    "de": "Wenn du gewinnst, ohne irgendetwas zu tun"
+  },
+  {
+    "id": "party",
+    "en": "The party after everyone said they were going home early",
+    "de": "Die Party, nachdem alle früh nach Hause gehen wollten"
+  },
+  {
+    "id": "tech",
+    "en": "{player} offering free tech support",
+    "de": "{player} bietet kostenlosen IT-Support an"
+  },
+  {
+    "id": "duck",
+    "en": "There is a duck. Nobody knows why.",
+    "de": "Da ist eine Ente. Niemand weiß, warum."
+  }
+]
