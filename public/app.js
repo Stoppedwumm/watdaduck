@@ -93,6 +93,8 @@ const copy = {
     observer: "You’re watching this round.",
     observerText: "New arrivals can play from the next round.",
     judging: "Watch closely. You pick the winner.",
+    judgeWaiting:
+      "You’re the Memeinator: you choose the winner and cannot submit a meme. Waiting for the players’ memes.",
     watchTv: "Eyes on the big screen.",
     watchTvText: "TV mode is on. Memes play automatically on the host screen.",
     playHere: "Play on this device",
@@ -130,6 +132,7 @@ const copy = {
       serverFull: "The server is full. Try again later.",
       hostOnly: "Only the host can do that.",
       judgeOnly: "Only the Memeinator can do that.",
+      judgeCannotSubmit: "The Memeinator cannot submit memes.",
       wrongPhase: "That action is not available in this phase.",
       needPlayers: "You need at least two connected players.",
       chooseJudge: "Choose an eligible Memeinator first.",
@@ -228,6 +231,8 @@ const copy = {
     observer: "Du schaust diese Runde zu.",
     observerText: "Neu beigetretene Spieler spielen ab der nächsten Runde mit.",
     judging: "Schau genau hin. Du wählst den Gewinner.",
+    judgeWaiting:
+      "Du bist der Memeinator: Du wählst den Gewinner und kannst kein Meme abgeben. Warte auf die Memes der anderen.",
     watchTv: "Augen auf den großen Bildschirm.",
     watchTvText:
       "Der TV-Modus ist an. Memes starten automatisch auf dem Host-Bildschirm.",
@@ -266,6 +271,7 @@ const copy = {
       serverFull: "Der Server ist voll. Versuche es später erneut.",
       hostOnly: "Das darf nur der Host.",
       judgeOnly: "Das darf nur der Memeinator.",
+      judgeCannotSubmit: "Der Memeinator kann keine Memes abgeben.",
       wrongPhase: "Diese Aktion ist in dieser Phase nicht möglich.",
       needPlayers: "Ihr braucht mindestens zwei verbundene Spieler.",
       chooseJudge: "Wähle zuerst einen verfügbaren Memeinator.",
@@ -440,8 +446,8 @@ function phaseContent() {
       }<p class="note">${t("autoPrompt")}</p>`;
     case "submit": {
       const observer = state.canSubmit === false;
-      return `<span class="eyebrow">${t("sendTitle")}</span><h2>${esc(state.prompt)}</h2>${isJudge() ? `<p class="note">${t("judging")}</p>` : ""}${observer ? `<p>${t("observer")} ${t("observerText")}</p>` : state.mySubmission ? `<div class="card"><strong>${t(state.mySubmission === "pending" ? "pending" : state.mySubmission === "ready" ? "ready" : "embed")}</strong></div>` : `<p class="muted">${t("waitSubmit")}</p><form id="submit-form"><label for="meme-url">${t("url")}</label><input id="meme-url" class="url-input" type="url" placeholder="${t("urlPlaceholder")}" maxlength="2048" required><button class="primary">${t("send")}</button></form>`}<div class="progress-list">${state.players
-        .filter((p) => !(state.settings.hostViewOnly && p.id === state.hostId))
+      return `<span class="eyebrow">${t("sendTitle")}</span><h2>${esc(state.prompt)}</h2>${isJudge() ? `<p class="note">${t("judging")}</p>` : ""}${isJudge() ? `<p class="muted">${t("judgeWaiting")}</p>` : observer ? `<p>${t("observer")} ${t("observerText")}</p>` : state.mySubmission ? `<div class="card"><strong>${t(state.mySubmission === "pending" ? "pending" : state.mySubmission === "ready" ? "ready" : "embed")}</strong></div>` : `<p class="muted">${t("waitSubmit")}</p><form id="submit-form"><label for="meme-url">${t("url")}</label><input id="meme-url" class="url-input" type="url" placeholder="${t("urlPlaceholder")}" maxlength="2048" required><button class="primary">${t("send")}</button></form>`}<div class="progress-list">${state.players
+        .filter((p) => state.submitterIds.includes(p.id))
         .map(
           (p) =>
             `<span class="pill">${esc(p.name)} · ${state.submitted.includes(p.id) ? t("submitted") : "…"}</span>`,
